@@ -7,14 +7,24 @@ import (
 // MouseMsg contains information about a mouse event and are sent to a programs
 // update function when mouse activity occurs. Note that the mouse must first
 // be enabled in order for the mouse events to be received.
-type MouseMsg = input.MouseEvent
+//
+// Deprecated: Use MouseDownMsg, MouseUpMsg, or MouseMoveMsg instead.
+type MouseMsg = MouseDownMsg
 
-// Mouse event actions.
-const (
-	MouseActionPress   = input.MouseActionPress
-	MouseActionRelease = input.MouseActionRelease
-	MouseActionMotion  = input.MouseActionMotion
-)
+// MouseDownMsg contains information about a mouse down event and are sent to a
+// programs update function when mouse activity occurs. Note that the mouse
+// must first be enabled in order for the mouse events to be received.
+type MouseDownMsg = input.MouseDownEvent
+
+// MouseUpMsg contains information about a mouse up event and are sent to a
+// programs update function when mouse activity occurs. Note that the mouse
+// must first be enabled in order for the mouse events to be received.
+type MouseUpMsg = input.MouseUpEvent
+
+// MouseMoveMsg contains information about a mouse move event and are sent to a
+// programs update function when mouse activity occurs. Note that the mouse
+// must first be enabled in order for the mouse events to be received.
+type MouseMoveMsg = input.MouseMoveEvent
 
 // Mouse event buttons
 //

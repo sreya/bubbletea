@@ -7,27 +7,24 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/exp/term/ansi/ctrl"
-	"github.com/charmbracelet/x/exp/term/ansi/kitty"
-	"github.com/charmbracelet/x/exp/term/ansi/sys"
+	"github.com/charmbracelet/x/exp/term/ansi"
 )
 
 type model struct {
-	prevKey    tea.KeyMsg
+	prevKey    tea.KeyDownMsg
 	kittyFlags int
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	// return nil
+	return tea.EnableEnhancedKeyboard
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.Action != tea.KeyPress {
-			break
-		}
+	case tea.KeyDownMsg:
+	out:
 		switch m.prevKey.String() {
 		case "q":
 			if msg.String() == "q" {
@@ -36,28 +33,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			switch msg.String() {
 			case "b":
-				execute(sys.RequestBackgroundColor)
+				execute(ansi.RequestBackgroundColor)
 			case "d":
-				execute(ctrl.RequestPrimaryDeviceAttributes)
+				execute(ansi.RequestPrimaryDeviceAttributes)
 			case "k":
-				execute(kitty.Request)
+				execute(ansi.RequestKittyKeyboard)
+			case "o":
+				execute(ansi.RequestModifyOtherKeys)
 			}
 		case "k":
 			switch msg.String() {
 			case "0":
 				m.kittyFlags = 0
 			case "1":
-				m.kittyFlags |= kitty.DisambiguateEscapeCodes
+				m.kittyFlags |= ansi.KittyDisambiguateEscapeCodes
 			case "2":
-				m.kittyFlags |= kitty.ReportEventTypes
+				m.kittyFlags |= ansi.KittyReportEventTypes
 			case "3":
-				m.kittyFlags |= kitty.ReportAlternateKeys
+				m.kittyFlags |= ansi.KittyReportAlternateKeys
 			case "4":
-				m.kittyFlags |= kitty.ReportAllKeys
+				m.kittyFlags |= ansi.KittyReportAllKeys
 			case "5":
-				m.kittyFlags |= kitty.ReportAssociatedKeys
+				m.kittyFlags |= ansi.KittyReportAssociatedKeys
+			default:
+				break out
 			}
-			execute(kitty.Push(m.kittyFlags))
+			execute(ansi.PushKittyKeyboard(m.kittyFlags))
 		}
 		m.prevKey = msg
 	}
@@ -75,7 +76,7 @@ func (m model) View() string {
 }
 
 func main() {
-	defer execute(kitty.Push(0))
+	defer execute(ansi.PushKittyKeyboard(0))
 	p := tea.NewProgram(model{})
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)

@@ -73,6 +73,25 @@ type renderer interface {
 
 	// requestBackgroundColor requests the background color from the terminal.
 	requestBackgroundColor()
+
+	// requestForegroundColor requests the foreground color from the terminal.
+	requestForegroundColor()
+
+	// requestCursorColor requests the cursor color from the terminal.
+	requestCursorColor()
+
+	// requestPrimaryDeviceAttributes requests the primary device attributes
+	// from the terminal.
+	requestPrimaryDeviceAttributes()
+
+	// requestEnhancedKeyboard requests the enhanced keyboard from the terminal.
+	requestEnhancedKeyboard()
+
+	// enableEnhancedKeyboard enables keyboard enhancement mode.
+	enableEnhancedKeyboard(int)
+
+	// disableEnhancedKeyboard disables keyboard enhancement mode.
+	disableEnhancedKeyboard()
 }
 
 // repaintMsg forces a full repaint.

@@ -26,13 +26,22 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyDownMsg:
 		if s := msg.String(); s == "ctrl+c" || s == "q" || s == "esc" {
 			return m, tea.Quit
 		}
 
-	case tea.MouseMsg:
-		return m, tea.Printf("(X: %d, Y: %d) %s", msg.X, msg.Y, tea.MouseMsg(msg))
+	case tea.MouseDownMsg:
+		return m, tea.Printf("(X: %d, Y: %d) %s press", msg.X, msg.Y, msg)
+	case tea.MouseUpMsg:
+		return m, tea.Printf("(X: %d, Y: %d) %s release", msg.X, msg.Y, msg)
+	case tea.MouseMoveMsg:
+		s := msg.String()
+		if s != "" {
+			s += " "
+		}
+		s += "motion"
+		return m, tea.Printf("(X: %d, Y: %d) %s", msg.X, msg.Y, s)
 	}
 
 	return m, nil

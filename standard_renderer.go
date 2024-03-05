@@ -8,10 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/x/exp/term/ansi/cursor"
-	"github.com/charmbracelet/x/exp/term/ansi/mode"
-	"github.com/charmbracelet/x/exp/term/ansi/screen"
-	"github.com/charmbracelet/x/exp/term/ansi/sys"
+	"github.com/charmbracelet/x/exp/term/ansi"
 	"github.com/muesli/ansi/compressor"
 	"github.com/muesli/reflow/truncate"
 )
@@ -21,14 +18,6 @@ const (
 	// update the view.
 	defaultFPS = 60
 	maxFPS     = 120
-)
-
-var (
-	clearLineSeq   = screen.EraseLine(2)
-	clearScreenSeq = screen.EraseDisplay(2)
-	moveCursorSeq  = cursor.Move(1, 1)
-	cursorUpSeq    = cursor.Up(1)
-	cursorDownSeq  = cursor.Down(1)
 )
 
 // standardRenderer is a framerate-based terminal renderer, updating the view
@@ -119,7 +108,7 @@ func (r *standardRenderer) stop() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(clearLineSeq)
+	r.execute(ansi.EraseEntireLine)
 
 	if r.useANSICompressor {
 		if w, ok := r.out.(io.WriteCloser); ok {
@@ -143,7 +132,7 @@ func (r *standardRenderer) kill() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(clearLineSeq)
+	r.execute(ansi.EraseEntireLine)
 }
 
 // listen waits for ticks on the ticker, or a signal to stop the renderer.
@@ -195,17 +184,17 @@ func (r *standardRenderer) flush() {
 			// printing messages allows for native terminal word-wrap, we
 			// don't have control over the queued lines
 			if flushQueuedMessages {
-				buf.WriteString(clearLineSeq)
+				buf.WriteString(ansi.EraseEntireLine)
 			} else if (len(newLines) <= len(oldLines)) && (len(newLines) > i && len(oldLines) > i) && (newLines[i] == oldLines[i]) {
 				// If the number of lines we want to render hasn't increased and
 				// new line is the same as the old line we can skip rendering for
 				// this line as a performance optimization.
 				skipLines[i] = struct{}{}
 			} else if _, exists := r.ignoreLines[i]; !exists {
-				buf.WriteString(clearLineSeq)
+				buf.WriteString(ansi.EraseEntireLine)
 			}
 
-			buf.WriteString(cursorUpSeq)
+			buf.WriteString(ansi.CursorUp1)
 		}
 
 		if _, exists := r.ignoreLines[0]; !exists {
@@ -218,8 +207,8 @@ func (r *standardRenderer) flush() {
 			// standard (whereas others are proprietary to, say, VT100/VT52).
 			// If cursor previous line (ESC[ + <n> + F) were better supported
 			// we could use that above to eliminate this step.
-			buf.WriteString(cursor.Left(r.width))
-			buf.WriteString(clearLineSeq)
+			buf.WriteString(ansi.CursorLeft(r.width))
+			buf.WriteString(ansi.EraseEntireLine)
 		}
 	}
 
@@ -244,7 +233,7 @@ func (r *standardRenderer) flush() {
 		if _, skip := skipLines[i]; skip {
 			// Unless this is the last line, move the cursor down.
 			if i < len(newLines)-1 {
-				buf.WriteString(cursorDownSeq)
+				buf.WriteString(ansi.CursorDown1)
 			}
 		} else {
 			line := newLines[i]
@@ -275,9 +264,9 @@ func (r *standardRenderer) flush() {
 		// This case fixes a bug in macOS terminal. In other terminals the
 		// other case seems to do the job regardless of whether or not we're
 		// using the full terminal window.
-		buf.WriteString(cursor.Move(r.linesRendered, 0))
+		buf.WriteString(ansi.MoveCursor(r.linesRendered, 0))
 	} else {
-		buf.WriteString(cursor.Left(r.width))
+		buf.WriteString(ansi.CursorLeft(r.width))
 	}
 
 	_, _ = r.out.Write(buf.Bytes())
@@ -311,8 +300,8 @@ func (r *standardRenderer) clearScreen() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(clearScreenSeq)
-	r.execute(moveCursorSeq)
+	r.execute(ansi.EraseEntireDisplay)
+	r.execute(ansi.MoveCursorZero)
 
 	r.repaint()
 }
@@ -333,7 +322,7 @@ func (r *standardRenderer) enterAltScreen() {
 	}
 
 	r.altScreenActive = true
-	r.execute(mode.EnableAltScreenBuffer)
+	r.execute(ansi.EnableAltScreenBuffer)
 
 	// Ensure that the terminal is cleared, even when it doesn't support
 	// alt screen (or alt screen support is disabled, like GNU screen by
@@ -341,16 +330,16 @@ func (r *standardRenderer) enterAltScreen() {
 	//
 	// Note: we can't use r.clearScreen() here because the mutex is already
 	// locked.
-	r.execute(clearScreenSeq)
-	r.execute(moveCursorSeq)
+	r.execute(ansi.EraseEntireDisplay)
+	r.execute(ansi.MoveCursorZero)
 
 	// cmd.exe and other terminals keep separate cursor states for the AltScreen
 	// and the main buffer. We have to explicitly reset the cursor visibility
 	// whenever we enter AltScreen.
 	if r.cursorHidden {
-		r.execute(mode.HideCursor)
+		r.execute(ansi.HideCursor)
 	} else {
-		r.execute(mode.ShowCursor)
+		r.execute(ansi.ShowCursor)
 	}
 
 	r.repaint()
@@ -365,15 +354,15 @@ func (r *standardRenderer) exitAltScreen() {
 	}
 
 	r.altScreenActive = false
-	r.execute(mode.DisableAltScreenBuffer)
+	r.execute(ansi.DisableAltScreenBuffer)
 
 	// cmd.exe and other terminals keep separate cursor states for the AltScreen
 	// and the main buffer. We have to explicitly reset the cursor visibility
 	// whenever we exit AltScreen.
 	if r.cursorHidden {
-		r.execute(mode.HideCursor)
+		r.execute(ansi.HideCursor)
 	} else {
-		r.execute(mode.ShowCursor)
+		r.execute(ansi.ShowCursor)
 	}
 
 	r.repaint()
@@ -384,7 +373,7 @@ func (r *standardRenderer) showCursor() {
 	defer r.mtx.Unlock()
 
 	r.cursorHidden = false
-	r.execute(mode.ShowCursor)
+	r.execute(ansi.ShowCursor)
 }
 
 func (r *standardRenderer) hideCursor() {
@@ -392,56 +381,56 @@ func (r *standardRenderer) hideCursor() {
 	defer r.mtx.Unlock()
 
 	r.cursorHidden = true
-	r.execute(mode.HideCursor)
+	r.execute(ansi.HideCursor)
 }
 
 func (r *standardRenderer) enableMouseCellMotion() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.EnableCellMotionMouseTracking)
+	r.execute(ansi.EnableMouseCellMotion)
 }
 
 func (r *standardRenderer) disableMouseCellMotion() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.DisableCellMotionMouseTracking)
+	r.execute(ansi.DisableMouseCellMotion)
 }
 
 func (r *standardRenderer) enableMouseAllMotion() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.EnableAllMouseTracking)
+	r.execute(ansi.EnableMouseAllMotion)
 }
 
 func (r *standardRenderer) disableMouseAllMotion() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.DisableAllMouseTracking)
+	r.execute(ansi.DisableMouseAllMotion)
 }
 
 func (r *standardRenderer) enableMouseSGRMode() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.EnableSgrMouseExt)
+	r.execute(ansi.EnableMouseSgrExt)
 }
 
 func (r *standardRenderer) disableMouseSGRMode() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.DisableSgrMouseExt)
+	r.execute(ansi.DisableMouseSgrExt)
 }
 
 func (r *standardRenderer) enableBracketedPaste() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.EnableBracketedPaste)
+	r.execute(ansi.EnableBracketedPaste)
 	r.bpActive = true
 }
 
@@ -449,7 +438,7 @@ func (r *standardRenderer) disableBracketedPaste() {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	r.execute(mode.DisableBracketedPaste)
+	r.execute(ansi.DisableBracketedPaste)
 	r.bpActive = false
 }
 
@@ -462,12 +451,46 @@ func (r *standardRenderer) bracketedPasteActive() bool {
 
 // setWindowTitle sets the terminal window title.
 func (r *standardRenderer) setWindowTitle(title string) {
-	r.execute(sys.SetWindowTitle(title))
+	r.execute(ansi.SetWindowTitle(title))
 }
 
 // requestBackgroundColor requests the background color from the terminal.
 func (r *standardRenderer) requestBackgroundColor() {
-	r.execute(sys.RequestBackgroundColor)
+	r.execute(ansi.RequestBackgroundColor)
+}
+
+// requestForegroundColor requests the foreground color from the terminal.
+func (r *standardRenderer) requestForegroundColor() {
+	r.execute(ansi.RequestForegroundColor)
+}
+
+// requestCursorColor requests the cursor color from the terminal.
+func (r *standardRenderer) requestCursorColor() {
+	r.execute(ansi.RequestCursorColor)
+}
+
+// requestPrimaryDeviceAttributes requests the primary device attributes from
+// the terminal.
+func (r *standardRenderer) requestPrimaryDeviceAttributes() {
+	r.execute(ansi.RequestPrimaryDeviceAttributes)
+}
+
+// requestEnhancedKeyboard requests the enhanced keyboard from the terminal.
+func (r *standardRenderer) requestEnhancedKeyboard() {
+	r.execute(ansi.RequestKittyKeyboard)
+	r.execute(ansi.RequestModifyOtherKeys)
+}
+
+// enableEnhancedKeyboard enables keyboard enhancement mode.
+func (r *standardRenderer) enableEnhancedKeyboard(flags int) {
+	r.execute(ansi.EnableModifyOtherKeys2)
+	r.execute(ansi.PushKittyKeyboard(flags))
+}
+
+// disableEnhancedKeyboard disables keyboard enhancement mode.
+func (r *standardRenderer) disableEnhancedKeyboard() {
+	r.execute(ansi.DisableKittyKeyboard)
+	r.execute(ansi.DisableModifyOtherKeys)
 }
 
 // setIgnoredLines specifies lines not to be touched by the standard Bubble Tea
@@ -493,11 +516,11 @@ func (r *standardRenderer) setIgnoredLines(from int, to int) {
 
 		for i := r.linesRendered - 1; i >= 0; i-- {
 			if _, exists := r.ignoreLines[i]; exists {
-				buf.WriteString(clearLineSeq)
+				buf.WriteString(ansi.EraseEntireLine)
 			}
-			buf.WriteString(cursorUpSeq)
+			buf.WriteString(ansi.CursorUp1)
 		}
-		buf.WriteString(cursor.Move(r.linesRendered, 0)) // put cursor back
+		buf.WriteString(ansi.MoveCursor(r.linesRendered, 0)) // put cursor back
 		_, _ = r.out.Write(buf.Bytes())
 	}
 }
@@ -533,14 +556,14 @@ func (r *standardRenderer) insertTop(lines []string, topBoundary, bottomBoundary
 
 	buf := &bytes.Buffer{}
 
-	buf.WriteString(screen.SetScrollingRegion(topBoundary, bottomBoundary))
-	buf.WriteString(cursor.Move(topBoundary, 0))
-	buf.WriteString(screen.InsertLine(len(lines)))
+	buf.WriteString(ansi.SetScrollingRegion(topBoundary, bottomBoundary))
+	buf.WriteString(ansi.MoveCursor(topBoundary, 0))
+	buf.WriteString(ansi.InsertLine(len(lines)))
 	_, _ = buf.WriteString(strings.Join(lines, "\r\n"))
-	buf.WriteString(screen.SetScrollingRegion(0, r.height))
+	buf.WriteString(ansi.SetScrollingRegion(0, r.height))
 
 	// Move cursor back to where the main rendering routine expects it to be
-	buf.WriteString(cursor.Move(r.linesRendered, 0))
+	buf.WriteString(ansi.MoveCursor(r.linesRendered, 0))
 
 	_, _ = r.out.Write(buf.Bytes())
 }
@@ -560,13 +583,13 @@ func (r *standardRenderer) insertBottom(lines []string, topBoundary, bottomBound
 
 	buf := &bytes.Buffer{}
 
-	buf.WriteString(screen.SetScrollingRegion(topBoundary, bottomBoundary))
-	buf.WriteString(cursor.Move(bottomBoundary, 0))
+	buf.WriteString(ansi.SetScrollingRegion(topBoundary, bottomBoundary))
+	buf.WriteString(ansi.MoveCursor(bottomBoundary, 0))
 	_, _ = buf.WriteString("\r\n" + strings.Join(lines, "\r\n"))
-	buf.WriteString(screen.SetScrollingRegion(0, r.height))
+	buf.WriteString(ansi.SetScrollingRegion(0, r.height))
 
 	// Move cursor back to where the main rendering routine expects it to be
-	buf.WriteString(cursor.Move(r.linesRendered, 0))
+	buf.WriteString(ansi.MoveCursor(r.linesRendered, 0))
 
 	_, _ = r.out.Write(buf.Bytes())
 }

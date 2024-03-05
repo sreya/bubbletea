@@ -13,6 +13,20 @@ type WindowSizeMsg = input.WindowSizeEvent
 // using RequestBackgroundColor Cmd.
 type BackgroundColorMsg = input.BackgroundColorEvent
 
+// ForegroundColorMsg is used to report the terminal's foreground color.
+type ForegroundColorMsg = input.ForegroundColorEvent
+
+// CursorColorMsg is used to report the terminal's cursor color.
+type CursorColorMsg = input.CursorColorEvent
+
+// EnhancedKeyboardMsg is used to report the terminal's keyboard enhancement mode
+// flags.
+type EnhancedKeyboardMsg = input.KittyKeyboardEvent
+
+// PrimaryDeviceAttributesMsg is used to report the terminal's primary device
+// attributes.
+type PrimaryDeviceAttributesMsg = input.PrimaryDeviceAttributesEvent
+
 // ClearScreen is a special command that tells the program to clear the screen
 // before the next update. This can be used to move the cursor to the top left
 // of the screen and clear visual clutter when the alt screen is not in use.
@@ -159,6 +173,94 @@ func RequestBackgroundColor() Msg {
 // background color. You can send a requestBackgroundColorMsg with
 // RequestBackgroundColor.
 type requestBackgroundColorMsg struct{}
+
+// RequestForegroundColor is a special command that requests the terminal's
+// foreground color. The foreground color will be sent to the program in a
+// ForegroundColorMsg.
+func RequestForegroundColor() Msg {
+	return requestForegroundColorMsg{}
+}
+
+// requestForegroundColorMsg is an internal message that requests the terminal's
+// foreground color. You can send a requestForegroundColorMsg with
+// RequestForegroundColor.
+type requestForegroundColorMsg struct{}
+
+// RequestCursorColor is a special command that requests the terminal's cursor
+// color. The cursor color will be sent to the program in a CursorColorMsg.
+// This command is not supported by all terminals.
+func RequestCursorColor() Msg {
+	return requestCursorColorMsg{}
+}
+
+// requestCursorColorMsg is an internal message that requests the terminal's
+// cursor color. You can send a requestCursorColorMsg with
+// RequestCursorColor.
+type requestCursorColorMsg struct{}
+
+// EnableEnhancedKeyboard is a special command that enables keyboard
+// enhancement mode. This mode enables the Kitty Keyboard protocol, which
+// provides more accurate keyboard input. This protocol is *not)( supported
+// by all terminals.
+//
+// https://sw.kovidgoyal.net/kitty/keyboard-protocol
+func EnableEnhancedKeyboard() Msg {
+	return enableEnhancedKeyboardMsg{}
+}
+
+// EnableCustomEnhancedKeyboard is a special command that enables keyboard
+// enhancement mode with custom flags. This mode enables the Kitty Keyboard
+// protocol, which provides more accurate keyboard input. This protocol is
+// *not* supported by all terminals.
+func EnableCustomEnhancedKeyboard(flags int) Msg {
+	return enableEnhancedKeyboardMsg{flags}
+}
+
+// enableEnhancedKeyboardMsg is an internal message that enables keyboard
+// enhancement mode. You can send an enableEnhancedKeyboardMsg with
+// EnableKeyboardEnhancement.
+type enableEnhancedKeyboardMsg struct {
+	flags int // zero means the default flags
+}
+
+// DisableEnhancedKeyboard is a special command that disables keyboard
+// enhancement mode. This command should be used to disable the keyboard
+// enhancement mode while the program is running.
+//
+// Note that the keyboard enhancement mode will be automatically disabled when
+// the program quits.
+func DisableEnhancedKeyboard() Msg {
+	return disableEnhancedKeyboardMsg{}
+}
+
+// disableEnhancedKeyboardMsg is an internal message that disables keyboard
+// enhancement mode. You can send a disableEnhancedKeyboardMsg with
+// DisableKeyboardEnhancement.
+type disableEnhancedKeyboardMsg struct{}
+
+// RequestEnhancedKeyboard is a special command that requests the terminal's
+// keyboard enhancement mode flags. The keyboard enhancement mode will be sent
+// to the program in a EnhancedKeyboardMsg.
+func RequestEnhancedKeyboard() Msg {
+	return requestEnhancedKeyboardMsg{}
+}
+
+// requestEnhancedKeyboardMsg is an internal message that requests the terminal's
+// keyboard enhancement mode flags. You can send a requestEnhancedKeyboardMsg with
+// RequestEnhancedKeyboard.
+type requestEnhancedKeyboardMsg struct{}
+
+// RequestPrimaryDeviceAttributes is a special command that requests the
+// terminal's primary device attributes. The primary device attributes will be
+// sent to the program in a PrimaryDeviceAttributesMsg.
+func RequestPrimaryDeviceAttributes() Msg {
+	return requestPrimaryDeviceAttributesMsg{}
+}
+
+// requestPrimaryDeviceAttributesMsg is an internal message that requests the
+// terminal's primary device attributes. You can send a
+// requestPrimaryDeviceAttributesMsg with RequestPrimaryDeviceAttributes.
+type requestPrimaryDeviceAttributesMsg struct{}
 
 // EnterAltScreen enters the alternate screen buffer, which consumes the entire
 // terminal window. ExitAltScreen will return the terminal to its former state.

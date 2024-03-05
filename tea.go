@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/charmbracelet/x/exp/term/ansi"
 	"github.com/charmbracelet/x/exp/term/input"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
@@ -362,6 +363,31 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 			case requestBackgroundColorMsg:
 				p.renderer.requestBackgroundColor()
 
+			case requestForegroundColorMsg:
+				p.renderer.requestForegroundColor()
+
+			case requestCursorColorMsg:
+				p.renderer.requestCursorColor()
+
+			case requestPrimaryDeviceAttributesMsg:
+				p.renderer.requestPrimaryDeviceAttributes()
+
+			case enableEnhancedKeyboardMsg:
+				// We use these default modes
+				//  - DisambiguateEscapeCodes
+				//  - ReportAllKeys
+				//
+				// Do we need to support the other modes?
+				// https://sw.kovidgoyal.net/kitty/keyboard-protocol/#progressive-enhancement
+				flags := ansi.KittyDisambiguateEscapeCodes | ansi.KittyReportAllKeys
+				if msg.flags != 0 {
+					flags = msg.flags
+				}
+				p.renderer.enableEnhancedKeyboard(flags)
+
+			case disableEnhancedKeyboardMsg:
+				p.renderer.disableEnhancedKeyboard()
+
 			case execMsg:
 				// NB: this blocks.
 				p.exec(msg.cmd, msg.fn)
@@ -538,8 +564,11 @@ func (p *Program) Run() (Model, error) {
 		}
 	}
 
-	// Query the terminal for its background color.
+	// Query the terminal for its background color, and enhanced keyboard
+	// (kitty keyboard) protocol.
+	// XXX: this must come after initializing the input reader.
 	p.renderer.requestBackgroundColor()
+	p.renderer.requestEnhancedKeyboard()
 
 	// Handle resize events.
 	handlers.add(p.handleResize())

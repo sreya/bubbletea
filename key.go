@@ -21,29 +21,80 @@ import (
 //
 //	// Switch on the key type (more foolproof)
 //	switch msg := msg.(type) {
-//	case KeyMsg:
-//	    switch msg.Type {
+//	case KeyDownMsg:
+//	    switch msg.Sym {
 //	    case KeyEnter:
 //	        fmt.Println("you pressed enter!")
-//	    case KeyRunes:
-//	        switch string(msg.Runes) {
+//	    case KeyNone:
+//	        switch string(msg.Rune) {
 //	        case "a":
 //	            fmt.Println("you pressed a!")
 //	        }
 //	    }
 //	}
 //
-// Note that Key.Runes will always contain at least one character, so you can
-// always safely call Key.Runes[0]. In most cases Key.Runes will only contain
-// one character, though certain input method editors (most notably Chinese
-// IMEs) can input multiple runes at once.
-type KeyMsg = input.KeyEvent
+// Deprecated: Use KeyDownMsg and KeyUpMsg instead.
+type KeyMsg = KeyDownMsg
 
-const (
-	KeyPress   = input.KeyPress
-	KeyRelease = input.KeyRelease
-	KeyRepeat  = input.KeyRepeat
-)
+// KeyDownMsg contains information about a keypress. KeyDownMsgs are always sent to
+// the program's update function. There are a couple general patterns you could
+// use to check for keypresses:
+//
+//	// Switch on the string representation of the key (shorter)
+//	switch msg := msg.(type) {
+//	case KeyDownMsg:
+//	    switch msg.String() {
+//	    case "enter":
+//	        fmt.Println("you pressed enter!")
+//	    case "a":
+//	        fmt.Println("you pressed a!")
+//	    }
+//	}
+//
+//	// Switch on the key type (more foolproof)
+//	switch msg := msg.(type) {
+//	case KeyDownMsg:
+//	    switch msg.Sym {
+//	    case KeyEnter:
+//	        fmt.Println("you pressed enter!")
+//	    case KeyNone:
+//	        switch string(msg.Rune) {
+//	        case "a":
+//	            fmt.Println("you pressed a!")
+//	        }
+//	    }
+//	}
+type KeyDownMsg = input.KeyDownEvent
+
+// KeyUpMsg contains information about a keypress. KeyUpMsgs are always sent to
+// the program's update function. There are a couple general patterns you could
+// use to check for keypresses:
+//
+//	// Switch on the string representation of the key (shorter)
+//	switch msg := msg.(type) {
+//	case KeyUpMsg:
+//	    switch msg.String() {
+//	    case "enter":
+//	        fmt.Println("you pressed enter!")
+//	    case "a":
+//	        fmt.Println("you pressed a!")
+//	    }
+//	}
+//
+//	// Switch on the key type (more foolproof)
+//	switch msg := msg.(type) {
+//	case KeyDownMsg:
+//	    switch msg.Sym {
+//	    case KeyEnter:
+//	        fmt.Println("you pressed enter!")
+//	    case KeyNone:
+//	        switch string(msg.Rune) {
+//	        case "a":
+//	            fmt.Println("you pressed a!")
+//	        }
+//	    }
+//	}
+type KeyUpMsg = input.KeyUpEvent
 
 // PasteMsg contains information about a paste event.
 type PasteMsg = input.PasteEvent
@@ -67,8 +118,8 @@ const (
 
 	// Special names in G0
 
-	KeySpace = input.KeySpace
-	KeyDel   = input.KeyDel
+	KeySpace  = input.KeySpace
+	KeyDelete = input.KeyDelete
 
 	// Special keys
 
@@ -79,7 +130,6 @@ const (
 	KeyBegin  = input.KeyBegin
 	KeyFind   = input.KeyFind
 	KeyInsert = input.KeyInsert
-	KeyDelete = input.KeyDelete
 	KeySelect = input.KeySelect
 	KeyPgUp   = input.KeyPgUp
 	KeyPgDown = input.KeyPgDown
