@@ -12,35 +12,34 @@ import (
 )
 
 func main() {
-	p := tea.NewProgram(model{})
+	p := tea.NewProgram()
 
-	if _, err := p.Run(); err != nil {
+	m, err := tea.Run(p, model{})
+	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Printf("Type: %T\n", m)
 }
 
 type errMsg error
 
 type model struct {
-	ctx      *tea.Context
 	textarea textarea.Model
 	err      error
 }
 
-func (m model) Init(ctx *tea.Context) (tea.Model, tea.Cmd) {
-	m.ctx = ctx
-
-	m.textarea = textarea.New(ctx.Renderer)
+func (m model) Init(ctx *tea.Context) (model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.textarea, cmd = m.textarea.Init(ctx)
 	m.textarea.Placeholder = "Once upon a time..."
 	m.textarea.Focus()
 
-	return m, textarea.Blink
+	return m, cmd
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m model) Update(msg tea.Msg) (model, tea.Cmd) {
 	var cmds []tea.Cmd
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -52,7 +51,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		default:
 			if !m.textarea.Focused() {
-				cmd = m.textarea.Focus()
+				cmd := m.textarea.Focus()
 				cmds = append(cmds, cmd)
 			}
 		}
@@ -63,6 +62,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	var cmd tea.Cmd
 	m.textarea, cmd = m.textarea.Update(msg)
 	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
