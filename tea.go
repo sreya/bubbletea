@@ -37,14 +37,14 @@ var ErrProgramKilled = errors.New("program was killed")
 type Msg interface{}
 
 // Model contains the program's state as well as its core functions.
-type Model interface {
+type Model[T any] interface {
 	// Init is the first function that will be called. It returns an optional
 	// initial command. To not perform an initial command return nil.
-	Init(*Context) (Model, Cmd)
+	Init(*Context) (T, Cmd)
 
 	// Update is called when a message is received. Use it to inspect messages
 	// and, in response, update the model and/or send a command.
-	Update(Msg) (Model, Cmd)
+	Update(Msg) (T, Cmd)
 
 	// View renders the program's UI, which is just a string. The view is
 	// rendered after every Update.
@@ -132,7 +132,7 @@ func (h handlers) shutdown() {
 
 // Program is a terminal user interface.
 type Program struct {
-	initialModel Model
+	// initialModel Model[any]
 
 	// Configuration options that will set as the program is initializing,
 	// treated as bits. These options can be set via various ProgramOptions.
@@ -174,7 +174,7 @@ type Program struct {
 	// below.
 	windowsStdin *os.File //nolint:golint,structcheck,unused
 
-	filter func(Model, Msg) Msg
+	filter func(Model[any], Msg) Msg
 
 	// fps is the frames per second we should set on the renderer, if
 	// applicable,
@@ -191,10 +191,10 @@ func Quit() Msg {
 type QuitMsg struct{}
 
 // NewProgram creates a new Program.
-func NewProgram(model Model, opts ...ProgramOption) *Program {
+func NewProgram(opts ...ProgramOption) *Program {
 	p := &Program{
-		initialModel: model,
-		msgs:         make(chan Msg),
+		// initialModel: model,
+		msgs: make(chan Msg),
 	}
 
 	// Apply all options to the program.
@@ -318,7 +318,7 @@ func (p *Program) disableMouse() {
 
 // eventLoop is the central message loop. It receives and handles the default
 // Bubble Tea messages, update the model and triggers redraws.
-func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
+func (p *Program) eventLoop(model Model[any], cmds chan Cmd) (Model[any], error) {
 	for {
 		select {
 		case <-p.ctx.Done():
@@ -423,6 +423,120 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 			}
 
 			var cmd Cmd
+			var m2 any
+			m2, cmd = model.Update(msg) // run update
+			model = m2.(Model[any])
+			cmds <- cmd                    // process command (if any)
+			p.renderer.write(model.View()) // send view to renderer
+		}
+	}
+}
+
+func eventLoop[T Model[T]](p *Program, model T, cmds chan Cmd) (T, error) {
+	for {
+		select {
+		case <-p.ctx.Done():
+			return model, nil
+
+		case err := <-p.errs:
+			return model, err
+
+		case msg := <-p.msgs:
+			// Filter messages.
+			// if p.filter != nil {
+			// 	msg = p.filter(model, msg)
+			// }
+			// if msg == nil {
+			// 	continue
+			// }
+
+			// Handle special internal messages.
+			switch msg := msg.(type) {
+			case QuitMsg:
+				return model, nil
+
+			case clearScreenMsg:
+				p.renderer.clearScreen()
+
+			case enterAltScreenMsg:
+				p.renderer.enterAltScreen()
+
+			case exitAltScreenMsg:
+				p.renderer.exitAltScreen()
+
+			case enableMouseCellMotionMsg, enableMouseAllMotionMsg:
+				switch msg.(type) {
+				case enableMouseCellMotionMsg:
+					p.renderer.enableMouseCellMotion()
+				case enableMouseAllMotionMsg:
+					p.renderer.enableMouseAllMotion()
+				}
+				// mouse mode (1006) is a no-op if the terminal doesn't support it.
+				p.renderer.enableMouseSGRMode()
+
+			case disableMouseMsg:
+				p.disableMouse()
+
+			case showCursorMsg:
+				p.renderer.showCursor()
+
+			case hideCursorMsg:
+				p.renderer.hideCursor()
+
+			case enableBracketedPasteMsg:
+				p.renderer.enableBracketedPaste()
+
+			case disableBracketedPasteMsg:
+				p.renderer.disableBracketedPaste()
+
+			case execMsg:
+				// NB: this blocks.
+				p.exec(msg.cmd, msg.fn)
+
+			case BatchMsg:
+				for _, cmd := range msg {
+					cmds <- cmd
+				}
+				continue
+
+			case sequenceMsg:
+				go func() {
+					// Execute commands one at a time, in order.
+					for _, cmd := range msg {
+						if cmd == nil {
+							continue
+						}
+
+						msg := cmd()
+						if batchMsg, ok := msg.(BatchMsg); ok {
+							g, _ := errgroup.WithContext(p.ctx)
+							for _, cmd := range batchMsg {
+								cmd := cmd
+								g.Go(func() error {
+									p.Send(cmd())
+									return nil
+								})
+							}
+
+							//nolint:errcheck
+							g.Wait() // wait for all commands from batch msg to finish
+							continue
+						}
+
+						p.Send(msg)
+					}
+				}()
+
+			case setWindowTitleMsg:
+				p.SetWindowTitle(string(msg))
+			}
+
+			// Process internal messages for the renderer.
+			if r, ok := p.renderer.(*standardRenderer); ok {
+				r.handleMessages(msg)
+			}
+
+			var cmd Cmd
 			model, cmd = model.Update(msg) // run update
 			cmds <- cmd                    // process command (if any)
 			p.renderer.write(model.View()) // send view to renderer
@@ -430,10 +544,7 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 	}
 }
 
-// Run initializes the program and runs its event loops, blocking until it gets
-// terminated by either [Program.Quit], [Program.Kill], or its signal handler.
-// Returns the final model.
-func (p *Program) Run() (Model, error) {
+func Run[T Model[T]](p *Program, model T) (T, error) {
 	handlers := handlers{}
 	cmds := make(chan Cmd)
 	p.errs = make(chan error)
@@ -467,7 +578,7 @@ func (p *Program) Run() (Model, error) {
 
 		f, err := openInputTTY()
 		if err != nil {
-			return p.initialModel, err
+			return model, err
 		}
 		defer f.Close() //nolint:errcheck
 		p.input = f
@@ -476,7 +587,7 @@ func (p *Program) Run() (Model, error) {
 		// Open a new TTY, by request
 		f, err := openInputTTY()
 		if err != nil {
-			return p.initialModel, err
+			return model, err
 		}
 		defer f.Close() //nolint:errcheck
 		p.input = f
@@ -510,7 +621,7 @@ func (p *Program) Run() (Model, error) {
 	// Check if output is a TTY before entering raw mode, hiding the cursor and
 	// so on.
 	if err := p.initTerminal(); err != nil {
-		return p.initialModel, err
+		return model, err
 	}
 
 	// Honor program startup options.
@@ -530,8 +641,173 @@ func (p *Program) Run() (Model, error) {
 
 	// Initialize the program.
 	var initCmd Cmd
-	model := p.initialModel
 	if model, initCmd = model.Init(p.renderContext); initCmd != nil {
+		ch := make(chan struct{})
+		handlers.add(ch)
+
+		go func() {
+			defer close(ch)
+
+			select {
+			case cmds <- initCmd:
+			case <-p.ctx.Done():
+			}
+		}()
+	}
+
+	// Start the renderer.
+	p.renderer.start()
+
+	// Render the initial view.
+	p.renderer.write(model.View())
+
+	// Subscribe to user input.
+	if p.input != nil {
+		if err := p.initCancelReader(); err != nil {
+			return model, err
+		}
+	}
+
+	// Handle resize events.
+	handlers.add(p.handleResize())
+
+	// Process commands.
+	handlers.add(p.handleCommands(cmds))
+
+	// Run event loop, handle updates and draw.
+	model, err := eventLoop(p, model, cmds)
+	killed := p.ctx.Err() != nil
+	if killed {
+		err = ErrProgramKilled
+	} else {
+		// Ensure we rendered the final state of the model.
+		p.renderer.write(model.View())
+	}
+
+	// Tear down.
+	p.cancel()
+
+	// Check if the cancel reader has been setup before waiting and closing.
+	if p.cancelReader != nil {
+		// Wait for input loop to finish.
+		if p.cancelReader.Cancel() {
+			p.waitForReadLoop()
+		}
+		_ = p.cancelReader.Close()
+	}
+
+	// Wait for all handlers to finish.
+	handlers.shutdown()
+
+	// Restore terminal state.
+	p.shutdown(killed)
+
+	return model, err
+}
+
+// Run initializes the program and runs its event loops, blocking until it gets
+// terminated by either [Program.Quit], [Program.Kill], or its signal handler.
+// Returns the final model.
+func (p *Program) Run(model Model[any]) (Model[any], error) {
+	handlers := handlers{}
+	cmds := make(chan Cmd)
+	p.errs = make(chan error)
+	p.finished = make(chan struct{}, 1)
+
+	defer p.cancel()
+
+	p.renderContext = &Context{
+		// FIXME: this isn't ideal, as TTY may be nil. We should share
+		// outputs here.
+		Renderer: lipgloss.NewRenderer(p.output.TTY()),
+	}
+
+	switch p.inputType {
+	case defaultInput:
+		p.input = os.Stdin
+
+		// The user has not set a custom input, so we need to check whether or
+		// not standard input is a terminal. If it's not, we open a new TTY for
+		// input. This will allow things to "just work" in cases where data was
+		// piped in or redirected to the application.
+		//
+		// To disable input entirely pass nil to the [WithInput] program option.
+		f, isFile := p.input.(*os.File)
+		if !isFile {
+			break
+		}
+		if isatty.IsTerminal(f.Fd()) {
+			break
+		}
+
+		f, err := openInputTTY()
+		if err != nil {
+			return model, err
+		}
+		defer f.Close() //nolint:errcheck
+		p.input = f
+
+	case ttyInput:
+		// Open a new TTY, by request
+		f, err := openInputTTY()
+		if err != nil {
+			return model, err
+		}
+		defer f.Close() //nolint:errcheck
+		p.input = f
+
+	case customInput:
+		// (There is nothing extra to do.)
+	}
+
+	// Handle signals.
+	if !p.startupOptions.has(withoutSignalHandler) {
+		handlers.add(p.handleSignals())
+	}
+
+	// Recover from panics.
+	if !p.startupOptions.has(withoutCatchPanics) {
+		defer func() {
+			if r := recover(); r != nil {
+				p.shutdown(true)
+				fmt.Printf("Caught panic:\n\n%s\n\nRestoring terminal...\n\n", r)
+				debug.PrintStack()
+				return
+			}
+		}()
+	}
+
+	// If no renderer is set use the standard one.
+	if p.renderer == nil {
+		p.renderer = newRenderer(p.output, p.startupOptions.has(withANSICompressor), p.fps)
+	}
+
+	// Check if output is a TTY before entering raw mode, hiding the cursor and
+	// so on.
+	if err := p.initTerminal(); err != nil {
+		return model, err
+	}
+
+	// Honor program startup options.
+	if p.startupOptions&withAltScreen != 0 {
+		p.renderer.enterAltScreen()
+	}
+	if p.startupOptions&withoutBracketedPaste == 0 {
+		p.renderer.enableBracketedPaste()
+	}
+	if p.startupOptions&withMouseCellMotion != 0 {
+		p.renderer.enableMouseCellMotion()
+		p.renderer.enableMouseSGRMode()
+	} else if p.startupOptions&withMouseAllMotion != 0 {
+		p.renderer.enableMouseAllMotion()
+		p.renderer.enableMouseSGRMode()
+	}
+
+	// Initialize the program.
+	var initCmd Cmd
+	var m2 any
+	if m2, initCmd = model.Init(p.renderContext); initCmd != nil {
+		model = m2.(Model[any])
 		ch := make(chan struct{})
 		handlers.add(ch)
 
@@ -600,8 +876,8 @@ func (p *Program) Run() (Model, error) {
 // or its signal handler. Returns the final model.
 //
 // Deprecated: please use [Program.Run] instead.
-func (p *Program) StartReturningModel() (Model, error) {
-	return p.Run()
+func (p *Program) StartReturningModel(model Model[any]) (Model[any], error) {
+	return p.Run(model)
 }
 
 // Start initializes the program and runs its event loops, blocking until it
@@ -609,8 +885,8 @@ func (p *Program) StartReturningModel() (Model, error) {
 // handler.
 //
 // Deprecated: please use [Program.Run] instead.
-func (p *Program) Start() error {
-	_, err := p.Run()
+func (p *Program) Start(model Model[any]) error {
+	_, err := p.Run(model)
 	return err
 }
 

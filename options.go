@@ -209,7 +209,7 @@ func WithANSICompressor() ProgramOption {
 //		fmt.Println("Error running program:", err)
 //		os.Exit(1)
 //	}
-func WithFilter(filter func(Model, Msg) Msg) ProgramOption {
+func WithFilter(filter func(Model[any], Msg) Msg) ProgramOption {
 	return func(p *Program) {
 		p.filter = filter
 	}
