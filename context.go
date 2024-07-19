@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"sync"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/shampoo"
 )
 
 // Context represents a Bubble Tea program's context. It is passed to the
@@ -34,12 +34,8 @@ type Context interface {
 	// Keyboard Protocol.
 	SupportsEnhancedKeyboard() bool
 
-	// NewStyle returns a new Lip Gloss style that is suitable for the program's
-	// environment.
-	NewStyle() lipgloss.Style
-
 	// ColorProfile returns the terminal's color profile.
-	ColorProfile() lipgloss.Profile
+	ColorProfile() shampoo.Profile
 
 	// WindowSize returns the terminal's current size.
 	WindowSize() (width, height int)
@@ -70,7 +66,7 @@ type teaContext struct {
 	values map[interface{}]interface{}
 	mtx    sync.RWMutex
 
-	profile    lipgloss.Profile
+	profile    shampoo.Profile
 	hasLightBg bool
 }
 
@@ -122,11 +118,7 @@ func (c *teaContext) SupportsEnhancedKeyboard() bool {
 	return false
 }
 
-func (c *teaContext) NewStyle() (s lipgloss.Style) {
-	return s.ColorProfile(c.profile).HasLightBackground(c.hasLightBg)
-}
-
-func (c *teaContext) ColorProfile() lipgloss.Profile {
+func (c *teaContext) ColorProfile() shampoo.Profile {
 	return c.profile
 }
 

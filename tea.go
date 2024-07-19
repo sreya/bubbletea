@@ -17,12 +17,13 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/shampoo"
 	"github.com/charmbracelet/x/input"
 	"github.com/charmbracelet/x/term"
 	"github.com/lucasb-eyer/go-colorful"
@@ -353,9 +354,6 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 			case QuitMsg:
 				return model, nil
 
-			case WindowSizeMsg:
-				p.ctx.SetValue(ContextKeyWindowSize, msg)
-
 			case KittyKeyboardMsg:
 				p.ctx.SetValue(ContextKeyKittyFlags, int(msg))
 
@@ -446,7 +444,32 @@ func (p *Program) eventLoop(model Model, cmds chan Cmd) (Model, error) {
 				p.SetWindowTitle(string(msg))
 
 			case windowSizeMsg:
-				p.checkResize()
+				go p.checkResize()
+
+			case WindowSizeMsg:
+				p.ctx.SetValue(ContextKeyWindowSize, msg)
+				if r, ok := p.renderer.(*screenRenderer); ok {
+					r.resize(msg.Width, msg.Height)
+				}
+
+			case repaintMsg:
+				p.renderer.repaint()
+
+			case printLineMessage:
+				lines := strings.Split(msg.messageBody, "\n")
+				switch r := p.renderer.(type) {
+				case *screenRenderer:
+					if !r.altScreen() {
+						r.screen.InsertAbove(lines...)
+					}
+				case *standardRenderer:
+					if !r.altScreenActive {
+						r.mtx.Lock()
+						r.queuedMessageLines = append(r.queuedMessageLines, lines...)
+						r.repaint()
+						r.mtx.Unlock()
+					}
+				}
 			}
 
 			// Process internal messages for the renderer.
@@ -486,7 +509,7 @@ func (p *Program) Run() (Model, error) {
 	p.finished = make(chan struct{}, 1)
 
 	// Detect color profile.
-	p.ctx.profile = lipgloss.DetectColorProfile(p.output, p.environ)
+	p.ctx.profile = shampoo.DetectColorProfile(p.output, p.environ)
 
 	defer p.cancel()
 
@@ -545,16 +568,26 @@ func (p *Program) Run() (Model, error) {
 		}()
 	}
 
-	// If no renderer is set use the standard one.
-	if p.renderer == nil {
-		p.renderer = newRenderer(p.output, p.startupOptions.has(withANSICompressor), p.fps)
-	}
-
 	// Check if output is a TTY before entering raw mode, hiding the cursor and
 	// so on.
 	if err := p.initTerminal(); err != nil {
 		return p.initialModel, err
 	}
+
+	// If no renderer is set use the standard one.
+	if p.renderer == nil {
+		var w, h int
+		if p.ttyOutput != nil {
+			w, h, _ = term.GetSize(p.ttyOutput.Fd())
+		}
+		p.renderer = newScreenRenderer(p.output, w, h, p.fps)
+		// p.renderer = newRenderer(p.output, p.startupOptions.has(withANSICompressor), p.fps)
+	}
+
+	// Start the renderer.
+	p.renderer.start()
+
+	p.renderer.hideCursor()
 
 	// Honor program startup options.
 	if p.startupTitle != "" {
@@ -574,10 +607,7 @@ func (p *Program) Run() (Model, error) {
 		p.renderer.enableMouseSGRMode()
 	}
 
-	// Start the renderer.
-	p.renderer.start()
-
-	// Subscribe to user input.
+	// Initialize the program.
 	model := p.initialModel
 	if p.input != nil {
 		if err := p.initInputReader(); err != nil {
@@ -786,14 +816,14 @@ func (p *Program) RestoreTerminal() error {
 	if err := p.initInputReader(); err != nil {
 		return err
 	}
+	if p.renderer != nil {
+		p.renderer.start()
+	}
 	if p.altScreenWasActive {
 		p.renderer.enterAltScreen()
 	} else {
 		// entering alt screen already causes a repaint.
 		go p.Send(repaintMsg{})
-	}
-	if p.renderer != nil {
-		p.renderer.start()
 	}
 	if p.bpWasActive {
 		p.renderer.enableBracketedPaste()
