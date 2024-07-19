@@ -33,10 +33,10 @@ import (
 //	    }
 //	}
 type (
-	Key        = input.Key
-	KeyMsg     = input.KeyDownEvent
-	KeyDownMsg = input.KeyDownEvent
-	KeyUpMsg   = input.KeyUpEvent
+	Key           = input.Key
+	KeyMsg        = input.KeyPressEvent
+	KeyPressMsg   = input.KeyPressEvent
+	KeyReleaseMsg = input.KeyReleaseEvent
 
 	// KeyMod represents modifier keys.
 	KeyMod = input.KeyMod
@@ -47,21 +47,21 @@ type (
 
 // Modifier keys.
 const (
-	Shift = input.Shift
-	Alt   = input.Alt
-	Ctrl  = input.Ctrl
-	Meta  = input.Meta
+	ModShift = input.ModShift
+	ModAlt   = input.ModAlt
+	ModCtrl  = input.ModCtrl
+	ModMeta  = input.ModMeta
 
 	// These modifiers are used with the Kitty protocol.
 
-	Hyper = input.Hyper
-	Super = input.Super // Windows/Command keys
+	ModHyper = input.ModHyper
+	ModSuper = input.ModSuper // Windows/Command keys
 
 	// These are key lock states.
 
-	CapsLock   = input.CapsLock
-	NumLock    = input.NumLock
-	ScrollLock = input.ScrollLock // Defined in Windows API only
+	ModCapsLock   = input.ModCapsLock
+	ModNumLock    = input.ModNumLock
+	ModScrollLock = input.ModScrollLock // Defined in Windows API only
 )
 
 // Symbol constants.
@@ -82,18 +82,18 @@ const (
 
 	// Special keys
 
-	KeyUp     = input.KeyNone
-	KeyDown   = input.KeyNone
-	KeyRight  = input.KeyNone
-	KeyLeft   = input.KeyNone
-	KeyBegin  = input.KeyNone
-	KeyFind   = input.KeyNone
-	KeyInsert = input.KeyNone
-	KeySelect = input.KeyNone
-	KeyPgUp   = input.KeyNone
-	KeyPgDown = input.KeyNone
-	KeyHome   = input.KeyNone
-	KeyEnd    = input.KeyNone
+	KeyRelease = input.KeyNone
+	KeyPress   = input.KeyNone
+	KeyRight   = input.KeyNone
+	KeyLeft    = input.KeyNone
+	KeyBegin   = input.KeyNone
+	KeyFind    = input.KeyNone
+	KeyInsert  = input.KeyNone
+	KeySelect  = input.KeyNone
+	KeyPgUp    = input.KeyNone
+	KeyPgDown  = input.KeyNone
+	KeyHome    = input.KeyNone
+	KeyEnd     = input.KeyNone
 
 	// Keypad keys
 

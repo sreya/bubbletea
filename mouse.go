@@ -8,12 +8,11 @@ import (
 // update function when mouse activity occurs. Note that the mouse must first
 // be enabled in order for the mouse events to be received.
 type (
-	MouseEvent     = input.Mouse
-	MouseMsg       = input.MouseDownEvent
-	MouseDownMsg   = input.MouseDownEvent
-	MouseUpMsg     = input.MouseUpEvent
-	MouseWheelMsg  = input.MouseWheelEvent
-	MouseMotionMsg = input.MouseMotionEvent
+	MouseEvent      = input.Mouse
+	MouseClickMsg   = input.MouseClickEvent
+	MouseReleaseMsg = input.MouseReleaseEvent
+	MouseWheelMsg   = input.MouseWheelEvent
+	MouseMotionMsg  = input.MouseMotionEvent
 )
 
 // Mouse event buttons
