@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/charmbracelet/colorprofile v0.1.9
 	github.com/charmbracelet/x/ansi v0.5.2
-	github.com/charmbracelet/x/cellbuf v0.0.7-0.20241209212528-0eec74ecaa6f
+	github.com/charmbracelet/x/cellbuf v0.0.7-0.20241210230033-45c33cb7b57a
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/charmbracelet/x/windows v0.2.0
 	github.com/muesli/cancelreader v0.2.2
